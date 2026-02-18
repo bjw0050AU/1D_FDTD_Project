@@ -20,6 +20,7 @@ dx = 0.2;
 % (make smaller as it will force wave to propagate further)
 
 x = 0:dx:(dx*1000); 
+xmax = 1000*dx;
 %all values of distance (x) in the simulation space
 %max value of distance (x) in the simulation space defined as dx*10000
 
@@ -27,24 +28,25 @@ x = 0:dx:(dx*1000);
 S = 0.99; %user-defined Courant stability factor (Can't be 1! Can be less.)
 dt = S*dx/c; %time step in seconds
 t=0; %start time in seconds
-tmax = (1/c)*10*(dx*1000); 
+tmax = dt*1e5; 
 %Simulation stops after time t=tmax (in seconds)--reach Xmax 5 times
 %Must at least allow time for wave to completely travel
 
 
 % Put dielectric material into the simulation space
 eps = ones(length(x),1).*eps_0; %initialize permittivity everywhere
-s1 = 100; %location index of the material boundary
+s1 = 500; %location index of the material boundary
 eps(s1:end) = eps(s1:end)*eps_r;%add dielectric material past boundary
 
 
 % Initialize electric field
-E = zeros(length(x)); %E=0 everywhere and for all previous time
+E = zeros(length(x),3); %E=0 everywhere and for all previous time
 
 % Set locations for the virtual electric field probes
-x0 = 3; %index of field probe E0 (free space)
-x1 = 100; %index of field probe E1 (material)
+x0 = 5; %index of field probe E0 (free space)
+x1 = s1; %index of field probe E1 (material)
 t1 = (1/f); 
+iteration = 1;
 %time of the snapshot in seconds (time for full-wave to complete)
 
 
@@ -56,13 +58,15 @@ h=figure;
 while t<tmax %update until the max time value is reached
     %indexing is (space step, time step)
     %implement the 1-D scalar update equation
-    E(2:end-1,3) = ((c*dt)^2)*((E(3:end,2)-2*(E(2:end-1,2))...
-        +E(1:end-2,2))/(dx^2)) + 2*E(2:end-1,2) - E(2:end-1,1);
+    E(2:end-1,3) = (1/(mu_0*eps(iteration)))*((dt/dx)^2)*((E(3:end,2)-2*(E(2:end-1,2))...
+        +E(1:end-2,2))) + 2*E(2:end-1,2) - E(2:end-1,1);
     %E-field of the incoming wave (turns off after 5 cycles)
     if t<=5/f
         E(1,3) = sin(2*pi*f*t);
+        E(end,3) = 0;
     elseif t>5/f
         E(1,3) = 0;
+        E(end,3) = 0;
     end
     %update the plot animation every 5 steps
     if mod(round(t/dt),5)==0
@@ -88,5 +92,6 @@ while t<tmax %update until the max time value is reached
     t = t+dt;
     E(:,1) = E(:,2);
     E(:,2) = E(:,3);
+    iteration = iteration + 1;
 end
 %add code here to produce figures after simulation ends
