@@ -4,6 +4,7 @@
 
 clear;      %clear workspace
 clc;        %clear console
+close all;
 
 %To-Do: Improve accuracy and values used in simulation
 % Physical constants and user-defined values
@@ -27,26 +28,26 @@ xmax = 1000*dx;
 
 S = 0.99; %user-defined Courant stability factor (Can't be 1! Can be less.)
 dt = S*dx/c; %time step in seconds
+fs = 1/dt;
 t=0; %start time in seconds
-tmax = dt*1e5; 
-%Simulation stops after time t=tmax (in seconds)--reach Xmax 5 times
-%Must at least allow time for wave to completely travel
+tmax = dt*(length(x)-1); %time it takes for all points to compute spatially
+n = tmax/dt; %find number of timesteps
 
 
 % Put dielectric material into the simulation space
 eps = ones(length(x),1).*eps_0; %initialize permittivity everywhere
 s1 = 500; %location index of the material boundary
-eps(s1:end) = eps(s1:end)*eps_r;%add dielectric material past boundary
+eps(s1:s1+15) = eps(s1:s1+15)*eps_r;%add dielectric material past boundary
 
 
 % Initialize electric field
 E = zeros(length(x),3); %E=0 everywhere and for all previous time
 
-% Set locations for the virtual electric field probes
-x0 = 5; %index of field probe E0 (free space)
-x1 = s1; %index of field probe E1 (material)
-t1 = (1/f); 
+% Set locations for the virtual electric field probe
+x1 = s1+4; %index of field probe E1 (material)
+t1 = 6*(1/f); 
 iteration = 1;
+amp_meas = 0; %variable for E0 amp measured
 %time of the snapshot in seconds (time for full-wave to complete)
 
 
@@ -68,11 +69,20 @@ while t<tmax %update until the max time value is reached
         E(1,3) = 0;
         E(end,3) = 0;
     end
+    if (t>5/f) & (amp_meas == 0) 
+        %figure;
+        E0_magn = max(E(:,3)); %find initial field Amp.
+        %plot(abs(fft(E)/length(E))); 
+        amp_meas = 1;
+        m = size(E(s1:end));
+        %plot normalized fft (for input sinusoid)
+    end
     %update the plot animation every 5 steps
     if mod(round(t/dt),5)==0
         figure(h)
         plot(x,E(:,3))
         xline(x(s1))
+        xline(x(s1+15))
         ylim([-3 3])
         title([sprintf('t=%f',t*1e6) '\mus'])
         drawnow
@@ -86,12 +96,40 @@ while t<tmax %update until the max time value is reached
         title([sprintf('t=%f',t*1e6) '\mus'])
     end
     %store values for the virtual field probes
-    E0(round(t/dt) + 1) = E(x0,3);
-    E1(round(t/dt) + 1) = E(x1,3);
+    if (iteration > 500)
+        Et(round(t/dt) + 1 - 498) = E(x1,3); %map transmitted field (reaches medium)
+    end
+    if (iteration > 550) & (amp_meas ~= 2) & (amp_meas ~= 3)
+        Et_magn = max(Et); %find initial field Amp.
+        amp_meas = 2;
+    elseif (iteration > 950) & (amp_meas ~= 3)
+        Er_magn = max(E(105:255,3)); %find initial field Amp.
+        amp_meas = 3;
+    end
+        %zeroing condition to prevent superposition for 
+        % reflect & initial being the transmitted value
     %move forward one time step
     t = t+dt;
     E(:,1) = E(:,2);
     E(:,2) = E(:,3);
     iteration = iteration + 1;
 end
+
 %add code here to produce figures after simulation ends
+%Et = reflected+initial into medium
+Tran_Coeff = (E0_magn-Er_magn)/E0_magn;
+eta_0 = 120*pi;
+eta_r = (Tran_Coeff / (2-Tran_Coeff)); %if negative acts capacitive
+
+Et_filtered = abs(Et(23:end)); %filter zeros in Et matrix (pre-saved)
+indices = find(Et_filtered < 0.1); %find zeros
+
+wavelength_mat = (indices(3) - indices(1))*dx; %find material lambda
+
+Up_mat = f*wavelength_mat; %find material propagation velocity
+
+
+
+
+
+
